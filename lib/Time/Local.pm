@@ -30,14 +30,10 @@ use constant SECS_PER_DAY    => 86400;
 
 my $MaxDay;
 if ($] < 5.012000) {
-    my $MaxInt;
-    if ( $^O eq 'MacOS' ) {
-        # time_t is unsigned...
-        $MaxInt = ( 1 << ( 8 * $Config{ivsize} ) ) - 1;
-    }
-    else {
-        $MaxInt = ( ( 1 << ( 8 * $Config{ivsize} - 2 ) ) - 1 ) * 2 + 1;
-    }
+    my $MaxInt = 1;
+    do {
+        $MaxInt *= 2;
+    } until ($MaxInt * 2 == ($MaxInt * 2) - 1);
 
     $MaxDay = int( ( $MaxInt - ( SECS_PER_DAY / 2 ) ) / SECS_PER_DAY ) - 1;
 }
@@ -151,7 +147,7 @@ sub timegm_nocheck {
     return &timegm;
 }
 
-sub timelocal {
+sub _timelocal {
     my $ref_t = &timegm;
     my $loc_for_ref_t = _timegm( localtime($ref_t) );
 
@@ -184,6 +180,37 @@ sub timelocal {
     $loc_t -= $dst_off if $s != $_[0] || $m != $_[1] || $h != $_[2];
 
     return $loc_t;
+}
+
+{
+    if ($] < 5.012000) {
+        require List::Util;
+        
+        my $MinEpochYear  = 70;  # 1970
+        my $MaxEpochYear  = 137; # 2037
+        my $MaxYearForDST = 137;
+        my $MinYearForDST = List::Util::min($ThisYear, $MaxYearForDST - 27);
+        
+        *timelocal = sub {
+            return &Time::Local::_timelocal
+              if ($_[5] >= $MinEpochYear && $_[5] <= $MaxEpochYear);
+
+            my @t = @_;
+            my $y = $t[5];
+            if ($y > $MaxYearForDST) {
+                $t[5] += int(($MinYearForDST - $y) / 28) * 28;
+            }
+            else {
+                $t[5] += int(($MaxYearForDST - $y) / 28) * 28;
+            }
+            my $t1 = Time::Local::timegm(@t);
+            my $t2 = Time::Local::timegm(gmtime($t1));
+            return &Time::Local::_timelocal - ($t1 - $t2);
+        };
+    }
+    else {
+        *timelocal = \&_timelocal;
+    }
 }
 
 sub timelocal_nocheck {
