@@ -72,7 +72,7 @@ sub _daygm {
     # This is written in such a byzantine way in order to avoid
     # lexical variables and sub calls, for speed
     return $_[3] + (
-        $Cheat{ pack( 'ss', @_[ 4, 5 ] ) } ||= do {
+        $Cheat{ pack( 'ii', @_[ 4, 5 ] ) } ||= do {
             my $month = ( $_[4] + 10 ) % 12;
             my $year  = $_[5] + 1900 - int($month / 10);
 
