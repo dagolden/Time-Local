@@ -21,10 +21,6 @@ my @time =
    [2020,  2, 29, 12, 59, 59],
    [2030,  7,  4, 17, 07, 06],
 
-# The following test fails on a surprising number of systems
-# so it is commented out. The end of the Epoch for a 32-bit signed
-# implementation of time_t should be Jan 19, 2038  03:14:07 UTC.
-#  [2038,  1, 17, 23, 59, 59],     # last full day in any tz
 
    [2010, 10, 12, 14, 13, 12.1],
    [2010, 10, 12, 14, 13, 59.1],
@@ -90,7 +86,7 @@ for (@time, @neg_time) {
             if $year < 70 && ! $neg_epoch_ok;
 
         # Test timelocal()
-        {
+        eval {
             my $year_in = $year < 70 ? $year + 1900 : $year;
             my $time = timelocal($sec,$min,$hour,$mday,$mon,$year_in);
 
@@ -102,11 +98,13 @@ for (@time, @neg_time) {
             is($D, $mday, "timelocal day for @$_");
             is($M, $mon, "timelocal month for @$_");
             is($Y, $year, "timelocal year for @$_");
+        };
+        if ( my $err = $@ ) {
+            ok( 0, "Exception for @time" ) or diag $@;
         }
 
-
         # Test timegm()
-        {
+        eval {
             my $year_in = $year < 70 ? $year + 1900 : $year;
             my $time = timegm($sec,$min,$hour,$mday,$mon,$year_in);
 
@@ -118,6 +116,9 @@ for (@time, @neg_time) {
             is($D, $mday, "timegm day for @$_");
             is($M, $mon, "timegm month for @$_");
             is($Y, $year, "timegm year for @$_");
+        };
+        if ( my $err = $@ ) {
+            ok( 0, "Exception for @time" ) or diag $@;
         }
     }
 }
@@ -193,8 +194,6 @@ SKIP:
 
 SKIP:
 {
-    skip 'These tests require a system with 64-bit time_t.', 3
-        unless $epoch_is_64;
 
     is( timegm( 8, 14, 3, 19, 0, ( 1900 + 138 ) ), 2**31,
         'can call timegm for 2**31 epoch seconds' );
@@ -260,6 +259,16 @@ SKIP:
 
     is( ( localtime( timelocal( 0, 0, 2, 27, 2, 2005 ) ) )[2], 2,
         'hour is 2 when given 2:00 AM on Europe/London date change' );
+
+    # test around y2038 and beyond
+    local $ENV{TZ} = 'Europe/Vienna';
+    POSIX::tzset();
+    $time = timelocal( qw/59 59 23 17 1 2038/ );
+    is( $time, 2150060399, "timelocal for just before y2038 boundary" );
+
+    $time = timelocal( qw/17 49 1 11 8 2258/ );
+    is( $time, 9110278157, "timelocal for 2258" );
+
 }
 
 done_testing();
